@@ -1,0 +1,129 @@
+/* styles.css */
+
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    background: url('646d4bb79ff76f75b218a08a_listicles-tech-image-large.jpg') no-repeat center center fixed; /* Substitua 'sua-imagem.jpg' pelo caminho correto */
+    background-size: cover;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+
+h1 {
+    text-align: center;
+    color: #ffffff;
+    margin-bottom: 20px;
+    
+}
+
+
+/* Form Styles */
+form {
+    background: rgba(255, 255, 255, 0.9); /* Fundo branco levemente transparente */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    margin: 0 auto 20px;
+}
+
+form input {
+    width: calc(100% - 20px); /* Adjust input width with padding */
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+form button {
+    width: 100%;
+    padding: 10px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+form button:hover {
+    background-color: #218838;
+}
+
+/* Table Styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+table th, table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #555;
+}
+
+table tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Action Buttons */
+.actions a {
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-right: 5px;
+}
+
+.actions a.edit {
+    background-color: #000000;
+    color: #ffffff;
+}
+
+.actions a.delete {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.actions a.edit:hover {
+    background-color: #535353;
+}
+
+.actions a.delete:hover {
+    background-color: #c82333;
+}
+
+.back-button {
+    position: absolute; /* Position the button absolutely */
+    top: 20px; /* Distance from the top */
+    left: 20px; /* Distance from the left */
+    padding: 10px; /* Adjust padding for the icon */
+    background-color: #000000;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    width: 40px; /* Adjust width to fit the icon */
+    height: 40px; /* Adjust height to fit the icon */
+    display: flex;
+    align-items: center; /* Center the icon vertically */
+    justify-content: center; /* Center the icon horizontally */
+}
+
+.back-button:hover {
+    background-color: #525252;
+}
+
