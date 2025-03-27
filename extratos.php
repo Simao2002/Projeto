@@ -21,7 +21,7 @@ if (!$conn) {
 mysqli_set_charset($conn, "utf8");
 
 // Fetch Companies from the clientes table
-$sql = "SELECT id, company, HorasContratadas FROM clientes";
+$sql = "SELECT id, company, HorasContratadas, InicioContrato, FimContrato FROM clientes";
 $companies_result = mysqli_query($conn, $sql);
 
 require_once('TCPDF-main\tcpdf.php');
@@ -48,14 +48,17 @@ if (isset($_POST['generate_pdf'])) {
     $year = $_POST['year'];
 
     // Fetch Company Name and HorasContratadas
-    $sql_company = "SELECT company, HorasContratadas FROM clientes WHERE id = $company_id";
+    $sql_company = "SELECT company, HorasContratadas, InicioContrato, FimContrato FROM clientes WHERE id = $company_id";
     $company_result = mysqli_query($conn, $sql_company);
     $company_row = mysqli_fetch_assoc($company_result);
     $company_name = $company_row['company'];
     $horas_contratadas = substr($company_row['HorasContratadas'], 0, 5);
+    
+    // Verificar se a empresa tem contrato
+    $temContrato = ($company_row['InicioContrato'] != '0000-00-00' && $company_row['FimContrato'] != '0000-00-00' && $company_row['HorasContratadas'] != '00:00:00');
 
     // Fetch Assists for the selected company and date range (incluindo a condição)
-    $sql = "SELECT clientes.company, assists.help_description, assists.hours_spent, assists.created_at, assists.problem, assists.conditions 
+    $sql = "SELECT assists.id, clientes.company, assists.help_description, assists.hours_spent, assists.created_at, assists.problem, assists.conditions 
         FROM assists 
         JOIN clientes ON assists.company_id = clientes.id 
         WHERE assists.company_id = $company_id 
@@ -94,70 +97,77 @@ if (isset($_POST['generate_pdf'])) {
     $pdf->SetFont('helvetica', '', 12);
     $pdf->Cell(0, 10, 'Mês: ' . date('F', mktime(0, 0, 0, $month, 10)) . ' ' . $year, 0, 1, 'C');
 
-    // Horas Contratadas e Saldo
+    // Horas Contratadas e Saldo - Só mostra se tiver contrato
     $pdf->SetFont('helvetica', '', 12);
-    $pdf->SetX($pdf->GetPageWidth() - 100);
-    $pdf->Cell(90, 10, 'Horas Contratadas: ' . $horas_contratadas, 0, 1, 'R');
+    if ($temContrato) {
+        $pdf->SetX($pdf->GetPageWidth() - 100);
+        $pdf->Cell(90, 10, 'Horas Contratadas: ' . $horas_contratadas, 0, 1, 'R');
+    }
 
     // Calcular saldo de horas (considerando apenas assistências com contrato)
-    $saldo_horas_segundos = timeToSeconds($horas_contratadas);
+    $saldo_horas_segundos = $temContrato ? timeToSeconds($horas_contratadas) : 0;
     while ($row = mysqli_fetch_assoc($assists_result)) {
-        // Só desconta horas se a condição NÃO for "Sem Contrato"
-        if ($row['conditions'] !== "Sem Contrato") {
+        // Só desconta horas se for "Com Contrato"
+        if ($row['conditions'] === "Com Contrato" && $temContrato) {
             $hours_spent = substr($row['hours_spent'], 0, 5);
             $saldo_horas_segundos -= timeToSeconds($hours_spent);
         }
     }
-    $saldo_horas_final = secondsToTime($saldo_horas_segundos);
+    $saldo_horas_final = $temContrato ? secondsToTime($saldo_horas_segundos) : 'Sem Contrato';
 
-    $pdf->SetX($pdf->GetPageWidth() - 100);
-    $pdf->Cell(90, 10, 'Saldo de Horas: ' . $saldo_horas_final, 0, 1, 'R');
+    if ($temContrato) {
+        $pdf->SetX($pdf->GetPageWidth() - 100);
+        $pdf->Cell(90, 10, 'Saldo de Horas: ' . $saldo_horas_final, 0, 1, 'R');
+    }
     $pdf->Ln(10);
 
     // Reset result pointer
     mysqli_data_seek($assists_result, 0);
 
-    // Definir larguras das colunas
-    $col_width_description = 70;
-    $col_width_problem = 50;
-    $col_width_hours = 30;
-    $col_width_date = 25;
-    $col_width_saldo = 40;
-    $col_width_conditions = 40; // Nova coluna para condições
+    // Definir larguras das colunas (com data como 2º campo)
+    $col_width_guia = 20;   // Número da guia
+    $col_width_date = 25;   // Data como segundo campo
+    $col_width_problem = 45; // Descrição do Problema
+    $col_width_description = 65; // Descrição do Serviço
+    $col_width_hours = 25;  // Horas gastas
+    $col_width_conditions = 35; // Condição
+    $col_width_saldo = 35;  // Saldo de horas
 
     // Calcular largura total e posição inicial
-    $table_width = $col_width_description + $col_width_problem + $col_width_hours + $col_width_date + $col_width_saldo + $col_width_conditions;
+    $table_width = $col_width_guia + $col_width_date + $col_width_problem + $col_width_description + $col_width_hours + $col_width_conditions + $col_width_saldo;
     $start_x = ($pdf->GetPageWidth() - $table_width) / 2;
 
     // Cabeçalho da tabela
-    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->SetFont('helvetica', 'B', 8);
     $pdf->SetX($start_x);
-    $pdf->Cell($col_width_problem, 10, 'Problema', 1, 0, 'C');
-    $pdf->Cell($col_width_description, 10, 'Descrição', 1, 0, 'C');
-    $pdf->Cell($col_width_hours, 10, 'Horas', 1, 0, 'C');
-    $pdf->Cell($col_width_conditions, 10, 'Condição', 1, 0, 'C'); // Nova coluna
+    $pdf->Cell($col_width_guia, 10, 'Guia Nrº', 1, 0, 'C');
     $pdf->Cell($col_width_date, 10, 'Data', 1, 0, 'C');
+    $pdf->Cell($col_width_problem, 10, 'Descrição do Problema', 1, 0, 'C');
+    $pdf->Cell($col_width_description, 10, 'Descrição do Serviço Efectuado', 1, 0, 'C');
+    $pdf->Cell($col_width_hours, 10, 'Horas', 1, 0, 'C');
+    $pdf->Cell($col_width_conditions, 10, 'Condição', 1, 0, 'C');
     $pdf->Cell($col_width_saldo, 10, 'Saldo', 1, 1, 'C');
 
     // Reinicializar saldo
-    $saldo_horas_segundos = timeToSeconds($horas_contratadas);
+    $saldo_horas_segundos = $temContrato ? timeToSeconds($horas_contratadas) : 0;
     $pdf->SetFont('helvetica', '', 9);
 
     // Adicionar linhas da tabela
     while ($row = mysqli_fetch_assoc($assists_result)) {
         $pdf->SetX($start_x);
         
+        $guia_id = $row['id'];
+        $created_at = date('d-m-Y', strtotime($row['created_at']));
         $help_description = $row['help_description'];
         $problem = $row['problem'];
         $hours_spent = substr($row['hours_spent'], 0, 5);
-        $created_at = date('d-m-Y', strtotime($row['created_at']));
-        $conditions = $row['conditions']; // Nova coluna
+        $conditions = $row['conditions'];
         
-        // Calcular saldo (só desconta se não for "Sem Contrato")
-        if ($conditions !== "Sem Contrato") {
+        // Calcular saldo (só desconta se for "Com Contrato" e a empresa tiver contrato)
+        if ($conditions === "Com Contrato" && $temContrato) {
             $saldo_horas_segundos -= timeToSeconds($hours_spent);
         }
-        $saldo_horas_cell = secondsToTime($saldo_horas_segundos);
+        $saldo_horas_cell = $temContrato ? secondsToTime($saldo_horas_segundos) : 'Sem Contrato';
         
         // Calcular altura da linha
         $max_height = 10;
@@ -166,16 +176,21 @@ if (isset($_POST['generate_pdf'])) {
         $max_lines = max($problem_lines, $desc_lines);
         $row_height = $max_lines * 5;
         
-        // Primeira célula (Problem)
+        // Primeira célula (Número da Guia)
+        $pdf->Cell($col_width_guia, $row_height, $guia_id, 1, 0, 'C');
+        
+        // Segunda célula (Data)
+        $pdf->Cell($col_width_date, $row_height, $created_at, 1, 0, 'C');
+        
+        // Terceira célula (Problem)
         $pdf->MultiCell($col_width_problem, $row_height, $problem, 1, 'C', false, 0);
         
-        // Segunda célula (Description)
+        // Quarta célula (Description)
         $pdf->MultiCell($col_width_description, $row_height, $help_description, 1, 'L', false, 0);
         
         // Demais células
         $pdf->Cell($col_width_hours, $row_height, $hours_spent, 1, 0, 'C');
-        $pdf->Cell($col_width_conditions, $row_height, $conditions, 1, 0, 'C'); // Nova coluna
-        $pdf->Cell($col_width_date, $row_height, $created_at, 1, 0, 'C');
+        $pdf->Cell($col_width_conditions, $row_height, $conditions, 1, 0, 'C');
         $pdf->Cell($col_width_saldo, $row_height, $saldo_horas_cell, 1, 1, 'C');
     }
 
@@ -207,7 +222,9 @@ if (isset($_POST['generate_pdf'])) {
             <label for="company">Empresa:</label>
             <select name="company" id="company" required>
                 <option value="">Selecione uma empresa</option>
-                <?php while ($row = mysqli_fetch_assoc($companies_result)) { ?>
+                <?php 
+                mysqli_data_seek($companies_result, 0);
+                while ($row = mysqli_fetch_assoc($companies_result)) { ?>
                     <option value="<?php echo $row['id']; ?>">
                         <?php echo htmlspecialchars($row['company']); ?>
                     </option>

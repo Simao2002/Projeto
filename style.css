@@ -181,9 +181,10 @@ hr {
 
 .big-button {
     display: flex; /* Use Flexbox for the container */
-    gap: 10px; /* Add space between buttons */
+    gap: 5px; /* Add space between buttons */
     align-items: center; /* Center buttons vertically */
     justify-content: flex-start; /* Align buttons to the start */
+    
 }
 
 a:hover{

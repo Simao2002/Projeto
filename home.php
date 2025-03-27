@@ -22,6 +22,7 @@ if (isset($_SESSION['id']) && isset($_SESSION['user_name'])) {
     </div>
     <h1 class="hello">Hello, <?php echo $_SESSION['name']; ?></h1><br>
     <hr>
+    
     <form class="big-button">
 
     <a href="clientes.php" class="big-button1">Clientes
@@ -30,6 +31,10 @@ if (isset($_SESSION['id']) && isset($_SESSION['user_name'])) {
 
     <a href="assist.php" class="big-button2">Assistencias
         <i class="fa-solid fa-life-ring"></i>
+    </a>
+
+    <a href="registo.php" class="big-button3">Registos
+        <i class="fa-regular fa-file"></i>
     </a>
 
     <a href="extratos.php" class="big-button3">Extratos

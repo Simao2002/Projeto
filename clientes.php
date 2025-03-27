@@ -6,6 +6,8 @@ if (!isset($_SESSION['id']) || !isset($_SESSION['user_name'])) {
     exit();
 }
 
+require 'vendor/autoload.php';
+
 $sname = "localhost";
 $uname = "root";
 $password = "";
@@ -17,55 +19,58 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// Array para armazenar múltiplos alertas
-$alertMessages = [];
-$currentDate = new DateTime(); // Data atual
+define('DESTINATARIO_NOTIFICACOES', 'shauinho9@gmail.com');
+define('NOTIFICACOES_DIR', 'notificacoes_enviadas');
 
-// Buscar os clientes e verificar a diferença de datas e horas
-$sql6 = "SELECT * FROM clientes";
-$result = mysqli_query($conn, $sql6);
+// Criar diretório se não existir
+if (!file_exists(NOTIFICACOES_DIR)) {
+    mkdir(NOTIFICACOES_DIR, 0755, true);
+}
 
-if ($result) {
+// Configurações do e-mail
+$mail = new PHPMailer\PHPMailer\PHPMailer(true);
+try {
+    $mail->isSMTP();
+    $mail->Host = 'smtp.gmail.com';
+    $mail->SMTPAuth = true;
+    $mail->Username = 'simaopiresfontes@gmail.com';
+    $mail->Password = 'vonk otzw kvvu kbrx';
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port = 587;
+    $mail->setFrom('pccisuporte@pcci.pt', 'Sistema de Contratos');
+    $mail->isHTML(false); // Email em texto puro
+} catch (Exception $e) {
+    die("Erro na configuração do e-mail: " . $e->getMessage());
+}
+
+// Buscar clientes com contratos a expirar em 30 dias
+$data_30_dias = date('Y-m-d', strtotime('+30 days'));
+$sql = "SELECT id, company FROM clientes WHERE FimContrato = '$data_30_dias' AND InicioContrato != '0000-00-00'";
+$result = mysqli_query($conn, $sql);
+
+if ($result && mysqli_num_rows($result) > 0) {
     while ($row = mysqli_fetch_assoc($result)) {
-        // Verificação de data do contrato
-        $fimContrato = new DateTime($row['FimContrato']);
-        $currentDateWithoutTime = clone $currentDate;
-        $currentDateWithoutTime->setTime(0, 0);
+        $arquivo_notificacao = NOTIFICACOES_DIR . '/cliente_' . $row['id'] . '.txt';
         
-        $interval = $currentDateWithoutTime->diff($fimContrato);
-        
-        // Alerta para data do contrato
-        if ($interval->invert == 0) { // Se a data ainda não passou
-            if ($interval->days == 3) {
-                $alertMessages[] = 'Contrato de ' . $row['company'] . ' expira em 3 dias!';
-            } elseif ($interval->days == 2) {
-                $alertMessages[] = 'Contrato de ' . $row['company'] . ' expira em 2 dias!';
-            } elseif ($interval->days == 1) {
-                $alertMessages[] = 'Contrato de ' . $row['company'] . ' expira em 1 dia!';
-            }
-        } elseif ($fimContrato->format('Y-m-d') == $currentDate->format('Y-m-d')) {
-            $alertMessages[] = 'Contrato de ' . $row['company'] . ' expira hoje!';
-        } elseif ($fimContrato->format('Y-m-d') < $currentDate->format('Y-m-d')) {
-            $alertMessages[] = 'Contrato de ' . $row['company'] . ' expirou!';
-        }
-        
-        // Verificação de horas do contrato
-        $saldoHoras = $row['SaldoHoras'];
-        $horasContratadas = $row['HorasContratadas'];
-        
-        // Converter para segundos para comparação
-        $saldoSegundos = timeToSeconds($saldoHoras);
-        
-        // Alerta para horas do contrato (5 horas ou menos)
-        if ($saldoSegundos <= 18000) { // 5 horas = 18000 segundos
-            $horasRestantes = floor($saldoSegundos / 3600);
-            $minutosRestantes = floor(($saldoSegundos % 3600) / 60);
-            
-            if ($saldoSegundos <= 0) {
-                $alertMessages[] = 'Contrato de ' . $row['company'] . ' - Horas esgotadas!';
-            } else {
-                $alertMessages[] = 'Contrato de ' . $row['company'] . ' - ' . 
-                                  $horasRestantes . 'h' . $minutosRestantes . 'm restantes!';
+        // Verificar se já foi notificado hoje
+        if (!file_exists($arquivo_notificacao) || file_get_contents($arquivo_notificacao) !== date('Y-m-d')) {
+            try {
+                $mail->clearAddresses();
+                $mail->addAddress(DESTINATARIO_NOTIFICACOES);
+                
+                $assunto = 'Contrato a expirar - ' . $row['company'];
+                $corpo ='Faltam 30 dias para acabar o contrato do cliente ' . $row['company'];
+                
+                $mail->Subject = $assunto;
+                $mail->Body = $corpo;
+                
+                if ($mail->send()) {
+                    // Registrar notificação
+                    file_put_contents($arquivo_notificacao, date('Y-m-d'));
+                    error_log("Notificação enviada para cliente ID: " . $row['id']);
+                }
+            } catch (Exception $e) {
+                error_log("Erro ao enviar notificação: " . $e->getMessage());
             }
         }
     }
@@ -88,11 +93,21 @@ if (isset($_POST['add'])) {
     $morada = $_POST['morada'];
     $localidade = $_POST['localidade'];
     $responsavel = $_POST['responsavel'];
-    $inicio_contrato = $_POST['inicio_contrato'];
-    $fim_contrato = $_POST['fim_contrato'];
-    $horas_contratadas = $_POST['horas_contratadas'] . ':00';
-
-    $saldo_horas = $horas_contratadas;
+    
+    // Verificar se o checkbox "Com Contrato" está marcado
+    $com_contrato = isset($_POST['com_contrato']) ? 1 : 0;
+    
+    if ($com_contrato) {
+        $inicio_contrato = $_POST['inicio_contrato'];
+        $fim_contrato = $_POST['fim_contrato'];
+        $horas_contratadas = $_POST['horas_contratadas'] . ':00';
+        $saldo_horas = $horas_contratadas;
+    } else {
+        $inicio_contrato = '0000-00-00';
+        $fim_contrato = '0000-00-00';
+        $horas_contratadas = '00:00:00';
+        $saldo_horas = '00:00:00';
+    }
 
     $sql3 = "INSERT INTO clientes (company, email, PostalCode, Morada, Localidade, Responsavel, InicioContrato, FimContrato, HorasContratadas, SaldoHoras)
              VALUES ('$name', '$email', '$postalcode', '$morada', '$localidade', '$responsavel', '$inicio_contrato', '$fim_contrato', '$horas_contratadas', '$saldo_horas')";
@@ -183,32 +198,39 @@ $result = mysqli_query($conn, $sql6);
             color: black;
         }
 
-        /* Estilo dos alertas */
-        .alert-container {
-            position: fixed;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            width: 80%;
-            max-width: 600px;
+        /* Estilo para os campos de contrato */
+        #contrato_fields {
+            display: block;
+            transition: all 0.3s ease;
         }
 
-        .alert {
-            background-color: #f44336;
-            color: white;
-            padding: 15px;
-            margin-bottom: 5px;
-            border-radius: 4px;
+        #contrato_fields input {
+            margin-bottom: 10px;
+        }
+
+        #com_contrato {
+            margin-right: 10px;
+        }
+        
+        /* Estilo para células com "Sem Contrato" */
+        .sem-contrato {
+            color: #888;
+            font-style: italic;
+        }
+
+        .checkbox-container {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            margin: 15px 0;
+            gap: 8px;
         }
 
-        .close-alert {
-            color: white;
-            font-weight: bold;
-            font-size: 22px;
+        .checkbox-container input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .checkbox-container label {
+            margin: 0;
             cursor: pointer;
         }
     </style>
@@ -219,18 +241,6 @@ $result = mysqli_query($conn, $sql6);
     </a>
 
     <h1>Clientes</h1>
-
-    <!-- Container para múltiplos alertas -->
-    <?php if (!empty($alertMessages)): ?>
-        <div class="alert-container">
-            <?php foreach ($alertMessages as $message): ?>
-                <div class="alert">
-                    <span><?php echo $message; ?></span>
-                    <span class="close-alert">&times;</span>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
 
     <!-- Botão para abrir a modal -->
     <button id="openModalBtn" style="margin-bottom: 20px;"><i class="fa-solid fa-plus"></i> Add Client</button>
@@ -247,9 +257,18 @@ $result = mysqli_query($conn, $sql6);
                 <input type="text" name="localidade" placeholder="Localidade" required>
                 <input type="text" name="responsavel" placeholder="Responsável" required>
                 <input type="email" name="email" placeholder="Email do Responsável" required>
-                <input type="date" id="inicio_contrato" name="inicio_contrato" placeholder="Início de Contrato" required>
-                <input type="date" id="fim_contrato" name="fim_contrato" placeholder="Fim de Contrato" required>
-                <input type="text" id="horas_contratadas" name="horas_contratadas" placeholder="Horas Contratadas (hh:mm)" required>
+                
+                <div class="checkbox-container">
+                <input type="checkbox" id="com_contrato" name="com_contrato" checked>
+                <label for="com_contrato">Com Contrato</label>
+                </div>
+                
+                <div id="contrato_fields">
+                    <input type="date" id="inicio_contrato" name="inicio_contrato" placeholder="Início de Contrato" required>
+                    <input type="date" id="fim_contrato" name="fim_contrato" placeholder="Fim de Contrato" required>
+                    <input type="text" id="horas_contratadas" name="horas_contratadas" placeholder="Horas Contratadas (hh:mm)" required>
+                </div>
+                
                 <button type="submit" name="add">Add Client</button>
             </form>
         </div>
@@ -295,19 +314,46 @@ $result = mysqli_query($conn, $sql6);
         // Validação do formato hh:mm
         const form = document.getElementById('clientForm');
         form.addEventListener('submit', function(event) {
-            const regex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-            if (!regex.test(horasContratadasInput.value)) {
-                alert('Formato de horas inválido. Use hh:mm (ex: 08:30).');
-                event.preventDefault();
+            const comContrato = document.getElementById('com_contrato').checked;
+            
+            if (comContrato) {
+                const regex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+                if (!regex.test(horasContratadasInput.value)) {
+                    alert('Formato de horas inválido. Use hh:mm (ex: 08:30).');
+                    event.preventDefault();
+                }
             }
         });
 
-        // Fechar alertas
-        document.querySelectorAll('.close-alert').forEach(btn => {
-            btn.addEventListener('click', function() {
-                this.parentElement.style.display = 'none';
-            });
-        });
+        // Controle da checkbox "Com Contrato"
+        const comContratoCheckbox = document.getElementById('com_contrato');
+        const contratoFields = document.getElementById('contrato_fields');
+
+        // Função para atualizar a visibilidade dos campos
+        function updateContractFieldsVisibility() {
+            if (comContratoCheckbox.checked) {
+                contratoFields.style.display = 'block';
+                // Tornar os campos obrigatórios
+                document.getElementById('inicio_contrato').required = true;
+                document.getElementById('fim_contrato').required = true;
+                document.getElementById('horas_contratadas').required = true;
+            } else {
+                contratoFields.style.display = 'none';
+                // Remover a obrigatoriedade dos campos
+                document.getElementById('inicio_contrato').required = false;
+                document.getElementById('fim_contrato').required = false;
+                document.getElementById('horas_contratadas').required = false;
+            }
+        }
+
+        // Event listener para a checkbox
+        comContratoCheckbox.addEventListener('change', updateContractFieldsVisibility);
+
+        // Inicializar a visibilidade quando a modal é aberta
+        openModalBtn.onclick = function() {
+            modal.style.display = 'block';
+            updateContractFieldsVisibility();
+        }
     </script>
 
     <!-- List Clients -->
@@ -329,8 +375,19 @@ $result = mysqli_query($conn, $sql6);
         <?php
         if ($result && mysqli_num_rows($result) > 0) {
             while ($row = mysqli_fetch_assoc($result)) {
-                $horasContratadas = substr($row['HorasContratadas'], 0, 5);
-                $saldoHoras = substr($row['SaldoHoras'], 0, 5);
+                // Verificar se o cliente tem contrato
+                $temContrato = ($row['InicioContrato'] != '0000-00-00' && 
+                               $row['FimContrato'] != '0000-00-00' && 
+                               $row['HorasContratadas'] != '00:00:00');
+                
+                // Preparar os valores para exibição
+                $inicioContrato = $temContrato ? $row['InicioContrato'] : 'Sem Contrato';
+                $fimContrato = $temContrato ? $row['FimContrato'] : 'Sem Contrato';
+                $horasContratadas = $temContrato ? substr($row['HorasContratadas'], 0, 5) : 'Sem Contrato';
+                $saldoHoras = $temContrato ? substr($row['SaldoHoras'], 0, 5) : 'Sem Contrato';
+                
+                // Classe CSS para células sem contrato
+                $semContratoClass = $temContrato ? '' : 'class="sem-contrato"';
                 
                 echo "<tr>
                     <td>{$row['id']}</td>
@@ -340,10 +397,10 @@ $result = mysqli_query($conn, $sql6);
                     <td>{$row['Localidade']}</td>
                     <td>{$row['Responsavel']}</td>
                     <td>{$row['email']}</td>
-                    <td>{$row['InicioContrato']}</td>
-                    <td>{$row['FimContrato']}</td>
-                    <td>{$horasContratadas}</td>
-                    <td>{$saldoHoras}</td>
+                    <td {$semContratoClass}>{$inicioContrato}</td>
+                    <td {$semContratoClass}>{$fimContrato}</td>
+                    <td {$semContratoClass}>{$horasContratadas}</td>
+                    <td {$semContratoClass}>{$saldoHoras}</td>
                     <td class='actions'>
                         <a href='edit.php?id={$row['id']}' class='edit'>Edit</a>
                         <a href='?delete={$row['id']}' class='delete' onclick='return confirm(\"Are you sure?\")'>Delete</a>
