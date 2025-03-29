@@ -1,34 +1,34 @@
-body{
+body {
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
     flex-direction: column;
     background: url('646d4bb79ff76f75b218a08a_listicles-tech-image-large.jpg') no-repeat center center fixed;
-     /* Prevents the image from repeating */
-}
-
-*{
+    background-size: cover;
+    margin: 0;
+    padding: 0;
     font-family: sans-serif;
+}
+
+* {
     box-sizing: border-box;
-    
 }
 
-form{
-    width: 500px;
-    border: 2px solid black;
+form {
+    width: auto;
     padding: 30px;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.9);
     border-radius: 25px;
-    
-
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
-h2{
+
+h2 {
     text-align: center;
     margin-bottom: 40px;
 }
 
-input{
+input {
     display: block;
     border: 2px solid #ccc;
     width: 95%;
@@ -37,49 +37,50 @@ input{
     border-radius: 25px;
 }
 
-label{
+label {
     color: #888;
     font-size: 18px;
     padding: 10px;
 }
 
-button{
+button {
     float: right;
     background: #555;
-    padding:10px 15px;
+    padding: 10px 15px;
     color: #fff;
     border-radius: 25px;
     margin-right: 10px;
-    
+    border: none;
+    cursor: pointer;
 }
 
-button:hover{
+button:hover {
     opacity: .7;
 }
 
-.error{
+.error {
     background: #F2DEDE;
     color: #A94442;
     padding: 10px;
     width: 95%;
     border-radius: 5px;
     margin: 20px auto;
-
 }
 
-.success{
+.success {
     background: #D4EDDA;
     color: #40754C;
     padding: 10px;
     width: 95%;
     border-radius: 5px;
     margin: 20px auto;
-
 }
 
-h1{
+h1 {
     text-align: center;
-    color:#ffffff;
+    color: #ffffff;
+    margin-bottom: 30px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .ca {
@@ -90,7 +91,7 @@ h1{
     color: #444;
 }
 
-.ca:hover{
+.ca:hover {
     text-decoration: underline;
 }
 
@@ -101,8 +102,8 @@ header {
 
 .top-right {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 20px;
+    right: 20px;
     text-align: right;
     display: flex;
     align-items: center;
@@ -110,19 +111,28 @@ header {
 }
 
 hr {
-    position: absolute;
-    top: 70px; /* Ajuste conforme necessário para posicionar abaixo do conteúdo */
-    width: 100%;
+    width: 80%;
     border: 0;
     height: 1px;
-    background: #000; /* Cor da linha */
-    margin: 0;
-    gap: 10px;
+    background: rgba(255, 255, 255, 0.5);
+    margin: 20px 0;
 }
+
+/* Botões grandes */
+.big-button-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Mantenha todo o CSS existente e apenas modifique as classes dos botões grandes */
 
 .big-button1 {
     display: inline-block;
-    width: 150px;
+    width: 250px;  /* Aumentei de 150px para 250px */
     height: 150px;
     background-color: #000000;
     color: white;
@@ -133,15 +143,12 @@ hr {
     line-height: 150px;
     transition: background-color 0.3s ease;
     text-decoration: none;
-}
-
-.big-button1:hover {
-    background-color: #525252;
+    margin: 10px;
 }
 
 .big-button2 {
     display: inline-block;
-    width: 150px;
+    width: 250px;  /* Aumentei de 150px para 250px */
     height: 150px;
     background-color: #000000;
     color: white;
@@ -153,15 +160,11 @@ hr {
     transition: background-color 0.3s ease;
     text-decoration: none;
     margin: 10px;
-}
-
-.big-button2:hover {
-    background-color: #525252;
 }
 
 .big-button3 {
     display: inline-block;
-    width: 150px;
+    width: 250px;  /* Aumentei de 150px para 250px */
     height: 150px;
     background-color: #000000;
     color: white;
@@ -175,27 +178,48 @@ hr {
     margin: 10px;
 }
 
-.big-button3:hover {
-    background-color: #525252;
-}
-
+/* Ajuste o container dos botões para acomodar o novo tamanho */
 .big-button {
-    display: flex; /* Use Flexbox for the container */
-    gap: 5px; /* Add space between buttons */
-    align-items: center; /* Center buttons vertically */
-    justify-content: flex-start; /* Align buttons to the start */
-    
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
 }
 
-a:hover{
-    color: rgb(0, 0, 0);
+.big-button:hover {
+    background-color: #525252;
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
-a {
-    color: #ff0000;
+.big-button i {
+    font-size: 40px;
+    margin-bottom: 15px;
 }
 
-.b-log{
-    border-radius: 5;
-    background-color: rgb(255, 255, 255);
+.big-button span {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.b-log {
+    border-radius: 25px;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 10px 20px;
+    border: 1px solid white;
+    transition: all 0.3s ease;
+}
+
+.b-log:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+    opacity: 1;
+}
+
+.b-log a {
+    color: white;
+    text-decoration: none;
 }

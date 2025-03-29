@@ -17,9 +17,36 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
+// Buscar o email do usuário logado
+$user_id = $_SESSION['id'];
+$sql_user = "SELECT email FROM users WHERE id = '$user_id'";
+$result_user = mysqli_query($conn, $sql_user);
+$user_email = "";
+
+if ($row_user = mysqli_fetch_assoc($result_user)) {
+    $user_email = $row_user['email'];
+}
+
 // Fetch Companies from the clientes table
 $sql9 = "SELECT id, company FROM clientes";
 $companies_result = mysqli_query($conn, $sql9);
+
+// Função para gerar o número da guia
+function gerarNumeroGuia($conn, $data_assistencia) {
+    $date = new DateTime($data_assistencia);
+    $yearMonth = $date->format('Ym');
+    
+    // Contar quantas assistências existem no mesmo mês/ano
+    $sql = "SELECT COUNT(*) as count FROM assists 
+            WHERE DATE_FORMAT(created_at, '%Y%m') = '$yearMonth'";
+    $result = mysqli_query($conn, $sql);
+    $row = mysqli_fetch_assoc($result);
+    
+    // O número sequencial é o count (começando do 0)
+    $sequential = $row['count'];
+    
+    return $yearMonth . '-' . str_pad($sequential, 2, '0', STR_PAD_LEFT);
+}
 
 // Add Assistance
 if (isset($_POST['add'])) {
@@ -42,8 +69,11 @@ if (isset($_POST['add'])) {
         return;
     }
 
-    $sql10 = "INSERT INTO assists (company_id, problem, help_description, hours_spent, service_status, conditions, lista_problemas, intervencao, Tecnico, EmailTecnico, created_at) 
-              VALUES ('$company_id', '$problem', '$help_description', '$hours_spent', '$service_status', '$conditions', '$lista_problemas', '$intervencao', '$tecnico', '$email_tecnico', '$data_assistencia')";
+    // Gerar o número da guia antes de inserir
+    $numero_guia = gerarNumeroGuia($conn, $data_assistencia);
+
+    $sql10 = "INSERT INTO assists (numero_guia, company_id, problem, help_description, hours_spent, service_status, conditions, lista_problemas, intervencao, Tecnico, EmailTecnico, created_at) 
+              VALUES ('$numero_guia', '$company_id', '$problem', '$help_description', '$hours_spent', '$service_status', '$conditions', '$lista_problemas', '$intervencao', '$tecnico', '$email_tecnico', '$data_assistencia')";
 
     if (mysqli_query($conn, $sql10)) {
         // Só desconta horas se for "Com Contrato"
@@ -65,33 +95,6 @@ if (isset($_POST['add'])) {
     <title>Assistance</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="assist.css">
-    <style>
-        /* Adicione os estilos do modal aqui para manter consistência */
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        .form-group select, 
-        .form-group input, 
-        .form-group textarea {
-            width: 100%;
-            padding: 8px;
-            box-sizing: border-box;
-        }
-        button[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            cursor: pointer;
-        }
-        button[type="submit"]:hover {
-            background-color: #45a049;
-        }
-    </style>
 </head>
 <body>
     <a href="home.php" class="back-button">
@@ -180,7 +183,7 @@ if (isset($_POST['add'])) {
 
         <div class="form-group">
             <label for="email_tecnico">Email do Técnico:</label>
-            <input type="email" name="email_tecnico" id="email_tecnico" placeholder="Email do técnico" required>
+            <input type="email" name="email_tecnico" id="email_tecnico" value="<?php echo htmlspecialchars($user_email); ?>" readonly required>
         </div>
 
         <div class="form-group">

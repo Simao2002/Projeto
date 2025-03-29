@@ -23,7 +23,7 @@ mysqli_set_charset($conn, "utf8");
 
 if (isset($_GET['id'])) {
     $id = $_GET['id'];
-    $sql = "SELECT assists.id, clientes.company, clientes.morada, clientes.PostalCode, clientes.Localidade, 
+    $sql = "SELECT assists.id, assists.numero_guia, clientes.company, clientes.morada, clientes.PostalCode, clientes.Localidade, 
                    clientes.InicioContrato, clientes.FimContrato, clientes.responsavel, 
                    assists.problem, assists.help_description, assists.hours_spent, assists.service_status, 
                    assists.conditions, assists.lista_problemas, assists.intervencao, 
@@ -35,6 +35,13 @@ if (isset($_GET['id'])) {
     $row = mysqli_fetch_assoc($result);
 
     if ($row) {
+        // Verificar se numero_guia existe, caso contrário gerar um temporário
+        if (!isset($row['numero_guia']) || empty($row['numero_guia'])) {
+            $date = new DateTime($row['created_at']);
+            $yearMonth = $date->format('Ym');
+            $row['numero_guia'] = $yearMonth . '-' . str_pad($row['id'], 2, '0', STR_PAD_LEFT);
+        }
+
         $temContrato = ($row['InicioContrato'] != '0000-00-00' && $row['FimContrato'] != '0000-00-00');
         
         $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
@@ -44,188 +51,237 @@ if (isset($_GET['id'])) {
         
         $pdf->SetCreator(PDF_CREATOR);
         $pdf->SetAuthor('Sistema de Assistência');
-        $pdf->SetTitle('Guia de Assistência ' . $row['id']);
+        $pdf->SetTitle('Guia de Assistência ' . $row['numero_guia']);
         $pdf->SetSubject('Guia de Assistência Técnica');
         
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
         
+        // Limpar qualquer saída anterior
+        ob_clean();
+        
         $pdf->AddPage();
-        $pdf->SetFont('helvetica', '', 12);
+        $pdf->AddFont('arial', '', 'TCPDF-main\fonts\arial.php');
+        $pdf->SetFont('Arial', '', 10);
 
         // Logo
         $imageWidth = 35;
         $pageWidth = $pdf->getPageWidth() - $pdf->getMargins()['left'] - $pdf->getMargins()['right'];
         $imageX = ($pageWidth - $imageWidth) / 2 - 35;
-        $pdf->Image('63907485-7886-4fc0-8a3a-43b4b5ea7a8c.jpg', $imageX, 30, $imageWidth);
+        $pdf->Image('pcci.jpg', $imageX, 30, $imageWidth);
 
         // Título
-        $pdf->SetXY(20, 15);
-        $pdf->SetFont('helvetica', 'B', 14);
-        $pdf->Cell(0, 10, 'Guia de Assistência N.: ' . $row['id'], 0, 1, 'C');
-        $pdf->Ln(10);  
-
-        $pdf->SetY($pdf->GetY() + 5);
-
-        // Seção Cliente com Código Postal e Localidade - CAIXA REDUZIDA
-        $pdf->SetXY(120, 40);
-        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetXY(120, 30);
+        $pdf->SetFont('Arial', 'B', 12);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->Cell(60, 7, 'Cliente', 0, 1, 'C', 1);
+        $pdf->Cell(70, 10, 'Guia de Assistência N. ' . $row['numero_guia'], 1, 1, 'C', 1); 
+        
+        $pdf->Ln(15);
+// Limpa qualquer output anterior
+ob_clean();
 
-        $pdf->SetFont('helvetica', '', 8);
-        $pdf->SetX(120);
-        $pdf->Rect(120, $pdf->GetY(), 60, 18); // Altura reduzida para 18mm
+// Estilo CSS com espaçamento ajustado
+$tbl = '
+<style>
+    .cliente-table {
+        width: 70mm;
+        font-size: 9pt;
+    }
+    .cliente-title {
+        background-color: #c8c8c8;
+        font-weight: bold;
+        text-align: center;
+        border: 1px solid #000;
+        font-size: 9pt;
+        padding: 2px;
+    }
+    .cliente-label {
+        background-color: #c8c8c8;
+        width: 20mm;
+        border: 1px solid #000;
+        padding: 2px 2px 2px 3mm; /* Espaço à esquerda aumentado */
+    }
+    .cliente-value {
+        background-color: #ffffff;
+        border: 1px solid #000;
+        width: 50mm;
+        padding: 2px 2px 2px 2mm; /* Espaço à esquerda */
+    }
+    .cliente-final {
+        background-color: #ffffff;
+        text-align: center;
+        border: 1px solid #000;
+        padding: 2px;
+    }
+</style>
 
-        $pdf->MultiCell(60, 5, 'Empresa: ' . $row['company'], 0, 'L'); // Altura da linha reduzida para 5
-        $pdf->SetX(120);
-        $pdf->MultiCell(60, 5, 'Morada: ' . $row['morada'], 0, 'L');
-        $pdf->SetX(120);
-        // Código postal e localidade juntos
-        $pdf->MultiCell(60, 5, $row['PostalCode'] . ' ' . $row['Localidade'], 0, 'L');
+<table class="cliente-table" cellspacing="0" cellpadding="0" border="0">
+    <tr>
+        <td class="cliente-title" colspan="2">Cliente</td>
+    </tr>
+    <tr>
+        <td class="cliente-label">Nome:</td>
+        <td class="cliente-value"> '.htmlspecialchars($row['company']).'</td>
+    </tr>
+    <tr>
+        <td class="cliente-label">Morada:</td>
+        <td class="cliente-value"> '.htmlspecialchars($row['morada']).'</td>
+    </tr>
+    <tr>
+        <td class="cliente-final" colspan="2">'.htmlspecialchars($row['PostalCode'].' '.$row['Localidade']).'</td>
+    </tr>
+</table>
+';
 
-        $pdf->Ln(8);
+// Posiciona a tabela corretamente
+$pdf->SetXY(120, 45);
+$pdf->writeHTML($tbl, true, false, false, false, '');
 
-        // Restante do código permanece igual...
+// Ajusta a posição Y para o próximo elemento
+$currentY = $pdf->GetY();
+$pdf->SetY($currentY + 5);
+
+
+$pdf->Ln(9); // Adiciona um espaço após a caixa
+
         // Descrição do Problema
-        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->SetFillColor(200, 200, 200);
         $pdf->Cell(170, 7, 'Descrição do Problema', 0, 1, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 9);
+        $pdf->SetFont('Arial', '', 10);
 
         $problem = $row['problem'];
         $problemHeight = $pdf->getStringHeight(170, $problem);
         $pdf->Rect(20, $pdf->GetY(), 170, $problemHeight + 15);
         $pdf->MultiCell(170, 6, $problem, 0, 'L');
-        $pdf->Ln($problemHeight + 10);
+        $pdf->Ln($problemHeight + 12);
 
         // Descrição do Serviço
-        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->SetFillColor(200, 200, 200);
         $pdf->Cell(170, 7, 'Descrição do Serviço Efectuado', 0, 1, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 9);
+        $pdf->SetFont('Arial', '', 10);
 
         $helpDescription = $row['help_description'];
         $helpHeight = $pdf->getStringHeight(170, $helpDescription);
-        $pdf->Rect(20, $pdf->GetY(), 170, $helpHeight + 15);
+        $pdf->Rect(20, $pdf->GetY(), 170, $helpHeight + 25);
         $pdf->MultiCell(170, 6, $helpDescription, 0, 'L');
-        $pdf->Ln($helpHeight + 12);
-
+        $pdf->Ln($helpHeight + 25);
 
         // Tabela de informações - CENTRALIZADA
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->SetFillColor(200, 200, 200);
 
-        // Definir larguras (ajuste conforme necessário)
         $labelWidth = 45;
         $valueWidth = 35;
-        $totalWidth = ($labelWidth + $valueWidth) * 2 + 10; // 10 é o espaçamento entre colunas
-        $startX = ($pdf->getPageWidth() - $totalWidth) / 2; // Calcula posição X para centralizar
+        $totalWidth = ($labelWidth + $valueWidth) * 2 + 10;
+        $startX = ($pdf->getPageWidth() - $totalWidth) / 2;
 
         // Primeira linha - CENTRALIZADA
         $pdf->SetX($startX);
         $pdf->Cell($labelWidth, 7, 'Estado do Serviço', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $row['service_status'], 1, 0, 'C');
-        $pdf->Cell(10, 7, '', 0, 0); // Espaçamento entre colunas
+        $pdf->Cell(10, 7, '', 0, 0);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Lista de Problemas', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $row['lista_problemas'], 1, 1, 'C');
         $pdf->Ln(2);
 
         // Segunda linha - CENTRALIZADA
         $pdf->SetX($startX);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Condições', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $row['conditions'], 1, 0, 'C');
         $pdf->Cell(10, 7, '', 0, 0);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Intervenção', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $row['intervencao'], 1, 1, 'C');
         $pdf->Ln(2);
 
         // Terceira linha - CENTRALIZADA
         $pdf->SetX($startX);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Início do Contrato', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $temContrato ? date('d-m-Y', strtotime($row['InicioContrato'])) : 'Sem Contrato', 1, 0, 'C');
         $pdf->Cell(10, 7, '', 0, 0);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Fim do Contrato', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $temContrato ? date('d-m-Y', strtotime($row['FimContrato'])) : 'Sem Contrato', 1, 1, 'C');
         $pdf->Ln(2);
 
         // Quarta linha - CENTRALIZADA
         $pdf->SetX($startX);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Responsável', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $row['responsavel'], 1, 0, 'C');
         $pdf->Cell(10, 7, '', 0, 0);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Horas Realizadas', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, substr($row['hours_spent'], 0, 5), 1, 1, 'C');
         $pdf->Ln(2);
 
         // Quinta linha - CENTRALIZADA
         $pdf->SetX($startX);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Técnico', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell($valueWidth, 7, $row['Tecnico'], 1, 0, 'C');
         $pdf->Cell(10, 7, '', 0, 0);
         $pdf->SetFillColor(200, 200, 200);
-        $pdf->SetFont('helvetica', 'B', 8);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell($labelWidth, 7, 'Email do Técnico', 1, 0, 'C', 1);
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetFont('Arial', '', 8);
         $pdf->Cell($valueWidth, 7, $row['EmailTecnico'], 1, 1, 'C');
         $pdf->Ln(10);
 
+
         // Assinatura
-        $pdf->SetFont('helvetica', 'B', 9);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(0, 7, 'Assinatura do Cliente', 0, 1, 'C');
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 9);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->Cell(0, 7, '____________________________________________', 0, 1, 'C');
         $pdf->Ln(2);
 
         // Observações
-        $pdf->SetFont('helvetica', 'B', 9);
+        $pdf->SetFont('Arial', 'B', 10);
         $pdf->Cell(0, 7, 'Observações do cliente', 0, 1, 'C');
         $pdf->SetFillColor(255, 255, 255);
-        $pdf->SetFont('helvetica', '', 9);
+        $pdf->SetFont('Arial', '', 10);
         $pdf->MultiCell(0, 7, '________________________________________________________', 0, 'C');
         $pdf->MultiCell(0, 7, '________________________________________________________', 0, 'C');
         $pdf->MultiCell(0, 7, '________________________________________________________', 0, 'C');
         $pdf->Ln(3);
 
-        $pdfFileName = 'Guia_Assistencia_' . $row['id'] . '_' . str_replace(' ', '_', $row['company']) . '.pdf';
+        $pdfFileName = 'Guia_Assistencia_' . $row['numero_guia'] . '_' . str_replace(' ', '_', $row['company']) . '.pdf';
         $pdf->Output($pdfFileName, 'D');
     } else {
         echo "Assistência não encontrada.";

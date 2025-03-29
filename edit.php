@@ -26,10 +26,16 @@ if (isset($_POST['edit'])) {
     $morada = $_POST['morada'];
     $localidade = $_POST['localidade'];
     $responsavel = $_POST['responsavel'];
-    $inicio_contrato = $_POST['inicio_contrato'];
-    $fim_contrato = $_POST['fim_contrato'];
-    $horas_contratadas = $_POST['horas_contratadas'] . ':00'; // Adiciona os segundos
-    $saldo_horas = $_POST['saldo_horas']; // Novo campo para editar SaldoHoras
+    
+    // Verifica se tem contrato para atualizar esses campos
+    $tem_contrato = ($_POST['inicio_contrato'] != '0000-00-00' && 
+                    $_POST['fim_contrato'] != '0000-00-00' && 
+                    $_POST['horas_contratadas'] != '00:00');
+    
+    $inicio_contrato = $tem_contrato ? $_POST['inicio_contrato'] : '0000-00-00';
+    $fim_contrato = $tem_contrato ? $_POST['fim_contrato'] : '0000-00-00';
+    $horas_contratadas = $tem_contrato ? $_POST['horas_contratadas'] . ':00' : '00:00:00';
+    $saldo_horas = $tem_contrato ? $_POST['saldo_horas'] . ':00' : '00:00:00';
 
     // Atualiza os dados do cliente
     $sql5 = "UPDATE clientes SET
@@ -56,6 +62,11 @@ $id = $_GET['id'];
 $sql6 = "SELECT * FROM clientes WHERE id=$id";
 $result = mysqli_query($conn, $sql6);
 $row = mysqli_fetch_assoc($result);
+
+// Verifica se o cliente tem contrato
+$tem_contrato = ($row['InicioContrato'] != '0000-00-00' && 
+                 $row['FimContrato'] != '0000-00-00' && 
+                 $row['HorasContratadas'] != '00:00:00');
 ?>
 
 <!DOCTYPE html>
@@ -102,6 +113,33 @@ $row = mysqli_fetch_assoc($result);
             text-decoration: none;
             cursor: pointer;
         }
+        
+        /* Estilo para os campos de horas */
+        .horas-input {
+            width: 100px;
+        }
+        
+        .disabled-field {
+            background-color: #f0f0f0;
+            color: #a0a0a0;
+            cursor: not-allowed;
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            gap: 8px;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .checkbox-container label {
+            margin: 0;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -119,62 +157,158 @@ $row = mysqli_fetch_assoc($result);
         <input type="text" name="localidade" value="<?php echo $row['Localidade']; ?>" placeholder="Localidade" required>
         <input type="text" name="responsavel" value="<?php echo $row['Responsavel']; ?>" placeholder="Responsável" required>
         <input type="email" name="email" value="<?php echo $row['email']; ?>" placeholder="Email do Responsável" required>
-        <input type="date" name="inicio_contrato" value="<?php echo $row['InicioContrato']; ?>" placeholder="Início de Contrato" required>
-        <input type="date" name="fim_contrato" value="<?php echo $row['FimContrato']; ?>" placeholder="Fim de Contrato" required>
-        <input type="text" id="horas_contratadas" name="horas_contratadas" value="<?php echo substr($row['HorasContratadas'], 0, 5); ?>" placeholder="Horas Contratadas (hh:mm)" required>
         
-        <!-- Campo para editar o SaldoHoras -->
-        <input type="text" id="saldo_horas" name="saldo_horas" value="<?php echo substr($row['SaldoHoras'], 0, 5); ?>" placeholder="Saldo Horas (hh:mm)" required>
+        <div class="checkbox-container">
+            <input type="checkbox" id="tem_contrato" name="tem_contrato" <?php echo $tem_contrato ? 'checked' : ''; ?>>
+            <label for="tem_contrato">Tem Contrato</label>
+        </div>
+        
+        <input type="date" name="inicio_contrato" id="inicio_contrato" 
+               value="<?php echo $tem_contrato ? $row['InicioContrato'] : ''; ?>" 
+               placeholder="Início de Contrato" 
+               <?php echo !$tem_contrato ? 'disabled' : ''; ?>
+               class="<?php echo !$tem_contrato ? 'disabled-field' : ''; ?>">
+               
+        <input type="date" name="fim_contrato" id="fim_contrato" 
+               value="<?php echo $tem_contrato ? $row['FimContrato'] : ''; ?>" 
+               placeholder="Fim de Contrato" 
+               <?php echo !$tem_contrato ? 'disabled' : ''; ?>
+               class="<?php echo !$tem_contrato ? 'disabled-field' : ''; ?>">
+        
+        <!-- Campo Horas Contratadas -->
+        <input type="text" id="horas_contratadas" name="horas_contratadas" 
+               value="<?php echo $tem_contrato ? substr($row['HorasContratadas'], 0, 5) : ''; ?>" 
+               placeholder="Horas (ex: 120:00)" 
+               class="horas-input <?php echo !$tem_contrato ? 'disabled-field' : ''; ?>"
+               maxlength="6"
+               <?php echo !$tem_contrato ? 'disabled' : ''; ?>>
+        
+        <!-- Campo Saldo de Horas -->
+        <input type="text" id="saldo_horas" name="saldo_horas" 
+               value="<?php echo $tem_contrato ? substr($row['SaldoHoras'], 0, 5) : ''; ?>" 
+               placeholder="Saldo (ex: 30:00)" 
+               class="horas-input <?php echo !$tem_contrato ? 'disabled-field' : ''; ?>"
+               maxlength="6"
+               <?php echo !$tem_contrato ? 'disabled' : ''; ?>>
 
         <button type="submit" name="edit">Save Changes</button>
     </form>
 
     <script>
-        // Função para formatação do campo de horas
-        function formatHoras(input) {
-            let value = input.value;
-
-            // Remove qualquer caractere que não seja número ou ":"
-            value = value.replace(/[^0-9:]/g, '');
-
-            // Adiciona automaticamente o ":" após dois dígitos
-            if (value.length > 2 && !value.includes(':')) {
-                value = value.slice(0, 2) + ':' + value.slice(2);
+        // Função para validar o formato das horas
+        function validarFormatoHoras(input) {
+            const value = input.value;
+            
+            // Verifica se tem exatamente um ":"
+            if ((value.match(/:/g) || []).length !== 1) {
+                alert('Formato inválido. Deve incluir um ":" (ex: 120:00)');
+                return false;
             }
-
-            // Limita o comprimento máximo a 5 caracteres
-            if (value.length > 5) {
-                value = value.slice(0, 5);
+            
+            // Divide em horas e minutos
+            const partes = value.split(':');
+            
+            // Verifica se tem 2 dígitos após o ":"
+            if (partes.length !== 2 || partes[1].length !== 2) {
+                alert('Formato inválido. Deve ter 2 dígitos após o ":" (ex: 120:00)');
+                return false;
             }
-
-            // Atualiza o valor do input
-            input.value = value;
+            
+            // Verifica se os minutos são válidos (00-59)
+            const minutos = parseInt(partes[1]);
+            if (minutos < 0 || minutos > 59) {
+                alert('Minutos inválidos. Deve ser entre 00 e 59');
+                return false;
+            }
+            
+            return true;
         }
 
-        // Aplique a formatação tanto para "horas_contratadas" quanto para "saldo_horas"
-        const horasContratadasInput = document.getElementById('horas_contratadas');
-        const saldoHorasInput = document.getElementById('saldo_horas');
-
-        horasContratadasInput.addEventListener('input', function() {
-            formatHoras(horasContratadasInput);
+        // Validação no envio do formulário
+        document.getElementById('clientForm').addEventListener('submit', function(event) {
+            const temContrato = document.getElementById('tem_contrato').checked;
+            
+            if (temContrato) {
+                const horasContratadas = document.getElementById('horas_contratadas');
+                const saldoHoras = document.getElementById('saldo_horas');
+                
+                if (!validarFormatoHoras(horasContratadas) || !validarFormatoHoras(saldoHoras)) {
+                    event.preventDefault();
+                }
+            }
         });
 
-        saldoHorasInput.addEventListener('input', function() {
-            formatHoras(saldoHorasInput);
+        // Validação durante a digitação (limita a 6 caracteres e apenas números e :)
+        document.getElementById('horas_contratadas').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/[^0-9:]/g, '');
+            
+            // Remove ":" extras
+            const parts = value.split(':');
+            if (parts.length > 2) {
+                value = parts[0] + ':' + parts[1];
+            }
+            
+            // Limita a 6 caracteres
+            if (value.length > 6) {
+                value = value.substring(0, 6);
+            }
+            
+            e.target.value = value;
         });
 
-        // Validação do formato hh:mm no envio do formulário
-        const form = document.getElementById('clientForm');
-
-        form.addEventListener('submit', function(event) {
-            const horasContratadas = horasContratadasInput.value;
-            const saldoHoras = saldoHorasInput.value;
-
-            // Verifica se o formato é hh:mm
-            const regex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-            if (!regex.test(horasContratadas) || !regex.test(saldoHoras)) {
-                alert('O formato das horas contratadas e saldo de horas deve ser hh:mm (ex: 08:30).');
-                event.preventDefault(); // Impede o envio do formulário
+        // Aplica a mesma validação para o campo de saldo
+        document.getElementById('saldo_horas').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/[^0-9:]/g, '');
+            
+            const parts = value.split(':');
+            if (parts.length > 2) {
+                value = parts[0] + ':' + parts[1];
+            }
+            
+            if (value.length > 6) {
+                value = value.substring(0, 6);
+            }
+            
+            e.target.value = value;
+        });
+        
+        // Toggle para habilitar/desabilitar campos de contrato
+        document.getElementById('tem_contrato').addEventListener('change', function(e) {
+            const temContrato = e.target.checked;
+            const inicioContrato = document.getElementById('inicio_contrato');
+            const fimContrato = document.getElementById('fim_contrato');
+            const horasContratadas = document.getElementById('horas_contratadas');
+            const saldoHoras = document.getElementById('saldo_horas');
+            
+            // Habilita ou desabilita os campos
+            inicioContrato.disabled = !temContrato;
+            fimContrato.disabled = !temContrato;
+            horasContratadas.disabled = !temContrato;
+            saldoHoras.disabled = !temContrato;
+            
+            // Adiciona ou remove a classe de estilo
+            if (temContrato) {
+                inicioContrato.classList.remove('disabled-field');
+                fimContrato.classList.remove('disabled-field');
+                horasContratadas.classList.remove('disabled-field');
+                saldoHoras.classList.remove('disabled-field');
+                
+                // Define valores padrão se estiverem vazios
+                if (!inicioContrato.value) inicioContrato.value = '<?php echo date('Y-m-d'); ?>';
+                if (!fimContrato.value) fimContrato.value = '<?php echo date('Y-m-d', strtotime('+1 year')); ?>';
+                if (!horasContratadas.value) horasContratadas.value = '100:00';
+                if (!saldoHoras.value) saldoHoras.value = '100:00';
+            } else {
+                inicioContrato.classList.add('disabled-field');
+                fimContrato.classList.add('disabled-field');
+                horasContratadas.classList.add('disabled-field');
+                saldoHoras.classList.add('disabled-field');
+                
+                // Limpa os valores
+                inicioContrato.value = '';
+                fimContrato.value = '';
+                horasContratadas.value = '';
+                saldoHoras.value = '';
             }
         });
     </script>
