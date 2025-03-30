@@ -260,7 +260,7 @@ if (isset($_POST['generate_pdf'])) {
         
         // Saldo Mensal
         if ($temContrato && $saldo_mensal_segundos < 0) {
-            $pdf->SetTextColor(255, 0, 0);
+            $pdf->SetTextColor(0, 0, 0);
             $pdf->MultiCell($col_width_saldo_mensal, $line_height, $saldo_mensal_cell, 1, 'C', false, 0);
             $pdf->SetTextColor(0, 0, 0);
         } else {
@@ -269,7 +269,7 @@ if (isset($_POST['generate_pdf'])) {
         
         // Saldo Total
         if ($temContrato && $saldo_total_segundos < 0) {
-            $pdf->SetTextColor(255, 0, 0);
+            $pdf->SetTextColor(0, 0, 0);
             $pdf->MultiCell($col_width_saldo_total, $line_height, $saldo_total_cell, 1, 1, 'C');
             $pdf->SetTextColor(0, 0, 0);
         } else {
