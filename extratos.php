@@ -80,7 +80,7 @@ if (isset($_POST['generate_pdf'])) {
 
     // Calcular horas mensais disponíveis
     $horas_mensais = $temContrato ? calcularHorasMensais($inicio_contrato, $fim_contrato, $horas_contratadas) : '00:00';
-    $saldo_mensal_segundos = $temContrato ? timeToSeconds($horas_mensais) : 0;
+    $segundos_mensais = $temContrato ? timeToSeconds($horas_mensais) : 0;
 
     // Obter o saldo acumulado até o mês ANTERIOR
     $start_date = date('Y-m-01', strtotime($year.'-'.$month.'-01'));
@@ -95,9 +95,30 @@ if (isset($_POST['generate_pdf'])) {
     $previous_result = mysqli_stmt_get_result($stmt_previous);
     $previous_row = mysqli_fetch_assoc($previous_result);
 
+    $total_segundos_utilizados_anteriores = $previous_row['total_seconds'] ?? 0;
+    $segundos_contratados = timeToSeconds($horas_contratadas);
+    
+    // Calcular saldo anterior (total contratado - horas já utilizadas)
     $saldo_anterior_segundos = $temContrato ? 
-        (timeToSeconds($horas_contratadas) - ($previous_row['total_seconds'] ?? 0)) : 
+        ($segundos_contratados - $total_segundos_utilizados_anteriores) : 
         0;
+
+    // Calcular o saldo acumulado do mês anterior (pode ser positivo ou negativo)
+    $mes_anterior = date('Y-m', strtotime('-1 month', strtotime($year.'-'.$month.'-01')));
+    $sql_saldo_mes_anterior = "SELECT saldo_mensal FROM saldo_horas 
+                              WHERE company_id = ? 
+                              AND mes_ano = ?";
+    $stmt_saldo_anterior = mysqli_prepare($conn, $sql_saldo_mes_anterior);
+    mysqli_stmt_bind_param($stmt_saldo_anterior, "is", $company_id, $mes_anterior);
+    mysqli_stmt_execute($stmt_saldo_anterior);
+    $saldo_anterior_result = mysqli_stmt_get_result($stmt_saldo_anterior);
+    $saldo_anterior_row = mysqli_fetch_assoc($saldo_anterior_result);
+    
+    $saldo_mes_anterior_segundos = $saldo_anterior_row['saldo_mensal'] ?? 0;
+    
+    // Calcular horas disponíveis para este mês (horas mensais + saldo do mês anterior)
+    $horas_disponiveis_mes_atual_segundos = $segundos_mensais + $saldo_mes_anterior_segundos;
+    $horas_disponiveis_mes_atual = secondsToTime($horas_disponiveis_mes_atual_segundos);
 
     // Obter assistências do mês atual
     $sql_month_assists = "SELECT id, numero_guia, help_description, hours_spent, created_at, problem, conditions 
@@ -113,7 +134,8 @@ if (isset($_POST['generate_pdf'])) {
 
     // Inicializar saldos
     $saldo_total_segundos = $saldo_anterior_segundos;
-    $saldo_mensal_segundos = $temContrato ? timeToSeconds($horas_mensais) : 0;
+    $saldo_mensal_segundos = $horas_disponiveis_mes_atual_segundos;
+    $total_horas_mes_segundos = 0;
 
     // Criar PDF com configurações para tabela maior
     $pdf = new TCPDF('L', PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
@@ -143,15 +165,16 @@ if (isset($_POST['generate_pdf'])) {
     // Definir larguras das colunas (valores em mm)
     $col_width_guia = 18;
     $col_width_date = 18;
-    $col_width_problem = 80;
-    $col_width_description = 110;
-    $col_width_hours = 15;
+    $col_width_problem = 70;
+    $col_width_description = 90;
+    $col_width_horas_contrato = 20;
     $col_width_saldo_mensal = 25;
+    $col_width_hours = 15;
     $col_width_saldo_total = 25;
 
     // Calcular largura total para centralização
     $table_width = $col_width_guia + $col_width_date + $col_width_problem + $col_width_description + 
-                   $col_width_hours + $col_width_saldo_mensal + $col_width_saldo_total;
+                   $col_width_horas_contrato + $col_width_saldo_mensal + $col_width_hours + $col_width_saldo_total;
     $start_x = ($pdf->GetPageWidth() - $table_width) / 2;
 
     // Cabeçalho da tabela - PRIMEIRA LINHA (data esquerda, empresa direita)
@@ -175,15 +198,17 @@ if (isset($_POST['generate_pdf'])) {
         'Data', 
         'Descrição do Problema', 
         'Descrição do Serviço Efetuado', 
+        'Horas Contrato',
+        'Horas Disponíveis',
         'Horas Inputadas', 
-        'Horas Mensais', 
         'Horas Saldo'
     ];
     
     $header_lines = [];
     foreach ($header_texts as $text) {
         $header_lines[] = ceil($pdf->GetStringWidth($text) / ($text == 'Descrição do Serviço Efetuado' ? $col_width_description : 
-                            ($text == 'Descrição do Problema' ? $col_width_problem : 22)));
+                            ($text == 'Descrição do Problema' ? $col_width_problem : 
+                            ($text == 'Horas Contrato' ? $col_width_horas_contrato : 22))));
     }
     $max_header_lines = max($header_lines);
     $header_height = 6 * $max_header_lines;
@@ -209,10 +234,12 @@ if (isset($_POST['generate_pdf'])) {
     $current_x += $col_width_problem;
     drawHeaderCell($pdf, $current_x, $start_y, $col_width_description, $header_height, 'Descrição do Serviço Efetuado', 1, true);
     $current_x += $col_width_description;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_horas_contrato, $header_height, 'Horas Contrato', 1, true);
+    $current_x += $col_width_horas_contrato;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_saldo_mensal, $header_height, 'Horas Disponíveis', 1, true);
+    $current_x += $col_width_saldo_mensal;
     drawHeaderCell($pdf, $current_x, $start_y, $col_width_hours, $header_height, 'Horas Inputadas', 1, true);
     $current_x += $col_width_hours;
-    drawHeaderCell($pdf, $current_x, $start_y, $col_width_saldo_mensal, $header_height, 'Horas Mensais', 1, true);
-    $current_x += $col_width_saldo_mensal;
     drawHeaderCell($pdf, $current_x, $start_y, $col_width_saldo_total, $header_height, 'Horas Saldo', 1, true);
     
     $pdf->SetY($start_y + $header_height);
@@ -230,8 +257,9 @@ if (isset($_POST['generate_pdf'])) {
         $pdf->Cell($col_width_date, 8, '', 1, 0, 'C');
         $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
         $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
-        $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_horas_contrato, 8, '', 1, 0, 'C');
         $pdf->Cell($col_width_saldo_mensal, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
         
         // Formatar horas contratadas como HHH:MM
         $parts = explode(':', $horas_contratadas);
@@ -249,8 +277,9 @@ if (isset($_POST['generate_pdf'])) {
     $pdf->Cell($col_width_date, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
+    $pdf->Cell($col_width_horas_contrato, 8, '', 1, 0, 'C');
+    $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_disponiveis_mes_atual : 'N/A', 1, 0, 'C');
     $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
-    $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_mensais : 'N/A', 1, 0, 'C');
     $pdf->Cell($col_width_saldo_total, 8, '', 1, 1, 'C');
 
     // Processar as assistências do mês atual
@@ -268,6 +297,7 @@ if (isset($_POST['generate_pdf'])) {
         if ($conditions === "Com Contrato" && $temContrato) {
             $saldo_mensal_segundos -= $hours_seconds;
             $saldo_total_segundos -= $hours_seconds;
+            $total_horas_mes_segundos += $hours_seconds;
         }
         
         $saldo_mensal_cell = $temContrato && $conditions === "Com Contrato" ? 
@@ -312,15 +342,30 @@ if (isset($_POST['generate_pdf'])) {
         // Descrição (altura dinâmica)
         $pdf->MultiCell($col_width_description, $line_height, $help_description, 1, 'C', false, 0);
         
-        // Horas (altura dinâmica)
-        $pdf->MultiCell($col_width_hours, $line_height, $hours_spent, 1, 'C', false, 0);
+        // Horas Contrato (nova coluna - em branco)
+        $pdf->MultiCell($col_width_horas_contrato, $line_height, '', 1, 'C', false, 0);
         
-        // Saldo Mensal
+        // Horas Disponíveis
         $pdf->MultiCell($col_width_saldo_mensal, $line_height, $saldo_mensal_cell, 1, 'C', false, 0);
+        
+        // Horas Inputadas (altura dinâmica)
+        $pdf->MultiCell($col_width_hours, $line_height, $hours_spent, 1, 'C', false, 0);
         
         // Saldo Total (centralizado e formatado ou vazio)
         $pdf->MultiCell($col_width_saldo_total, $line_height, $saldo_total_cell, 1, 'C', false, 1);
     }
+
+    // Calcular saldo para o próximo mês (horas disponíveis - horas utilizadas)
+    $saldo_proximo_mes_segundos = $horas_disponiveis_mes_atual_segundos - $total_horas_mes_segundos;
+    
+    // Salvar o saldo para o próximo mês na tabela saldo_horas
+    $mes_atual = date('Y-m', strtotime($year.'-'.$month.'-01'));
+    $sql_save_saldo = "INSERT INTO saldo_horas (company_id, mes_ano, saldo_mensal) 
+                      VALUES (?, ?, ?)
+                      ON DUPLICATE KEY UPDATE saldo_mensal = ?";
+    $stmt_save_saldo = mysqli_prepare($conn, $sql_save_saldo);
+    mysqli_stmt_bind_param($stmt_save_saldo, "isii", $company_id, $mes_atual, $saldo_proximo_mes_segundos, $saldo_proximo_mes_segundos);
+    mysqli_stmt_execute($stmt_save_saldo);
 
     // Gerar PDF
     $filename = 'extrato_mensal_' . str_replace(' ', '_', $company_name) . '_' . $month . '_' . $year . '.pdf';
@@ -388,5 +433,18 @@ $companies_result = mysqli_query($conn, $sql_companies);
 </html>
 
 <?php
+// Criar tabela saldo_horas se não existir
+$sql_create_table = "CREATE TABLE IF NOT EXISTS saldo_horas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    mes_ano VARCHAR(7) NOT NULL,
+    saldo_mensal INT NOT NULL COMMENT 'Saldo em segundos',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_company_month (company_id, mes_ano),
+    FOREIGN KEY (company_id) REFERENCES clientes(id)
+)";
+mysqli_query($conn, $sql_create_table);
+
 mysqli_close($conn);
 ?>
