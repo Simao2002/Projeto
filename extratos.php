@@ -71,6 +71,13 @@ if (isset($_POST['generate_pdf'])) {
     
     $temContrato = ($inicio_contrato != '0000-00-00' && $fim_contrato != '0000-00-00' && $horas_contratadas != '00:00:00');
 
+    // Verificar se é o primeiro mês do contrato
+    $primeiroMesContrato = false;
+    if ($temContrato) {
+        $dataInicio = new DateTime($inicio_contrato);
+        $primeiroMesContrato = ($dataInicio->format('m') == $month && $dataInicio->format('Y') == $year);
+    }
+
     // Calcular horas mensais disponíveis
     $horas_mensais = $temContrato ? calcularHorasMensais($inicio_contrato, $fim_contrato, $horas_contratadas) : '00:00';
     $saldo_mensal_segundos = $temContrato ? timeToSeconds($horas_mensais) : 0;
@@ -128,40 +135,39 @@ if (isset($_POST['generate_pdf'])) {
 
     $pdf->Image('pcci.jpg', $imageX, $imageY, $imageWidth);
     
-    // Título centralizado (aumentado)
+    // Título centralizado (mantém tamanho 16)
     $pdf->SetFont('helvetica', 'B', 16);
     $pdf->Cell(0, 10, 'EXTRATO MENSAL', 0, 1, 'C');
     $pdf->Ln(5);
 
-    // Definir larguras das colunas (aumentadas em ~50%)
-    $col_width_guia = 22;
-    $col_width_date = 22;
-    $col_width_problem = 45;
-    $col_width_description = 60;
-    $col_width_hours = 22;
-    $col_width_conditions = 30;
-    $col_width_saldo_mensal = 30;
-    $col_width_saldo_total = 30;
+    // Definir larguras das colunas (valores em mm)
+    $col_width_guia = 18;
+    $col_width_date = 18;
+    $col_width_problem = 80;
+    $col_width_description = 110;
+    $col_width_hours = 15;
+    $col_width_saldo_mensal = 25;
+    $col_width_saldo_total = 25;
 
     // Calcular largura total para centralização
     $table_width = $col_width_guia + $col_width_date + $col_width_problem + $col_width_description + 
-                   $col_width_hours + $col_width_conditions + $col_width_saldo_mensal + $col_width_saldo_total;
+                   $col_width_hours + $col_width_saldo_mensal + $col_width_saldo_total;
     $start_x = ($pdf->GetPageWidth() - $table_width) / 2;
 
     // Cabeçalho da tabela - PRIMEIRA LINHA (data esquerda, empresa direita)
-    $pdf->SetFont('helvetica', 'B', 10);
-    $pdf->SetFillColor(230, 230, 230); // Cinza claro
+    $pdf->SetFont('helvetica', 'B', 6);
+    $pdf->SetFillColor(230, 230, 230);
     $pdf->SetX($start_x);
+        
+    // Data à esquerda (sem borda)
+    $pdf->Cell($table_width/2, 8, date('m-Y', mktime(0, 0, 0, $month, 1, $year)), 0, 0, 'L', true);
+        
+    // Nome da empresa à direita (sem borda)
+    $pdf->Cell($table_width/2, 8, $company_name, 0, 1, 'R', true);
     
-    // Data à esquerda
-    $pdf->Cell($table_width/2, 8, date('m-Y', mktime(0, 0, 0, $month, 1, $year)), 1, 0, 'L', true);
-    
-    // Nome da empresa à direita
-    $pdf->Cell($table_width/2, 8, $company_name, 1, 1, 'R', true);
-    
-    // Segunda linha (cabeçalhos das colunas) - COM FUNDO CINZENTO
-    $pdf->SetFont('helvetica', 'B', 9);
-    $pdf->SetFillColor(230, 230, 230); // Cinza claro
+    // Segunda linha (cabeçalhos das colunas)
+    $pdf->SetFont('helvetica', 'B', 6);
+    $pdf->SetFillColor(230, 230, 230);
     
     // Calcular altura necessária para o cabeçalho
     $header_texts = [
@@ -170,7 +176,6 @@ if (isset($_POST['generate_pdf'])) {
         'Descrição do Problema', 
         'Descrição do Serviço Efetuado', 
         'Horas Inputadas', 
-        'Condição', 
         'Horas Mensais', 
         'Horas Saldo'
     ];
@@ -181,33 +186,75 @@ if (isset($_POST['generate_pdf'])) {
                             ($text == 'Descrição do Problema' ? $col_width_problem : 22)));
     }
     $max_header_lines = max($header_lines);
-    $header_height = 6 * $max_header_lines; // 6mm por linha
+    $header_height = 6 * $max_header_lines;
     
-    $pdf->SetX($start_x);
-    $pdf->MultiCell($col_width_guia, $header_height, 'Guia Nº', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_date, $header_height, 'Data', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_problem, $header_height, 'Descrição do Problema', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_description, $header_height, 'Descrição do Serviço Efetuado', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_hours, $header_height, 'Horas Inputadas', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_conditions, $header_height, 'Condição', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_saldo_mensal, $header_height, 'Horas Mensais', 1, 'C', true, 0);
-    $pdf->MultiCell($col_width_saldo_total, $header_height, 'Horas Saldo', 1, 1, 'C', true);
+    // Função para desenhar célula com texto alinhado na parte inferior
+    function drawHeaderCell($pdf, $x, $y, $width, $height, $text, $border, $fill) {
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($width, $height, '', $border, 0, 'C', $fill);
+        $pdf->SetXY($x, $y + ($height - 6));
+        $pdf->Cell($width, 6, $text, 0, 0, 'C');
+    }
+
+    $start_y = $pdf->GetY();
+    $pdf->SetY($start_y);
+    
+    // Desenhar cada célula do cabeçalho com texto alinhado na parte inferior
+    $current_x = $start_x;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_guia, $header_height, 'Guia Nº', 1, true);
+    $current_x += $col_width_guia;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_date, $header_height, 'Data', 1, true);
+    $current_x += $col_width_date;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_problem, $header_height, 'Descrição do Problema', 1, true);
+    $current_x += $col_width_problem;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_description, $header_height, 'Descrição do Serviço Efetuado', 1, true);
+    $current_x += $col_width_description;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_hours, $header_height, 'Horas Inputadas', 1, true);
+    $current_x += $col_width_hours;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_saldo_mensal, $header_height, 'Horas Mensais', 1, true);
+    $current_x += $col_width_saldo_mensal;
+    drawHeaderCell($pdf, $current_x, $start_y, $col_width_saldo_total, $header_height, 'Horas Saldo', 1, true);
+    
+    $pdf->SetY($start_y + $header_height);
+
+    // Configuração para centralização vertical e horizontal
+    $pdf->setCellHeightRatio(1.5);
+
+    // Mostrar linha com total contratado apenas no primeiro mês do contrato
+    if ($primeiroMesContrato) {
+        // Linha com o total contratado (primeira linha de dados)
+        $pdf->SetFont('helvetica', 'B', 6);
+        $pdf->SetFillColor(255, 255, 255);
+        $pdf->SetX($start_x);
+        $pdf->Cell($col_width_guia, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_date, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_saldo_mensal, 8, '', 1, 0, 'C');
+        
+        // Formatar horas contratadas como HHH:MM
+        $parts = explode(':', $horas_contratadas);
+        $hours = (int)$parts[0];
+        $minutes = isset($parts[1]) ? str_pad($parts[1], 2, '0', STR_PAD_LEFT) : '00';
+        $total_contratado_formatado = $hours . ':' . $minutes;
+        $pdf->Cell($col_width_saldo_total, 8, $total_contratado_formatado, 1, 1, 'C');
+    }
 
     // Linha inicial com saldos
-    $pdf->SetFont('helvetica', '', 9);
-    $pdf->SetFillColor(255, 255, 255); // Fundo branco
+    $pdf->SetFont('helvetica', '', 6);
+    $pdf->SetFillColor(255, 255, 255);
     $pdf->SetX($start_x);
     $pdf->Cell($col_width_guia, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_date, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
-    $pdf->Cell($col_width_conditions, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_mensais : 'N/A', 1, 0, 'C');
-    $pdf->Cell($col_width_saldo_total, 8, $temContrato ? secondsToTime($saldo_anterior_segundos) : 'N/A', 1, 1, 'C');
+    $pdf->Cell($col_width_saldo_total, 8, '', 1, 1, 'C');
 
     // Processar as assistências do mês atual
-    $default_line_height = 6; // Altura padrão de uma linha em mm
+    $default_line_height = 6;
     
     while ($row = mysqli_fetch_assoc($month_assists_result)) {
         $guia_id = isset($row['numero_guia']) && !empty($row['numero_guia']) ? $row['numero_guia'] : $row['id'];
@@ -223,13 +270,26 @@ if (isset($_POST['generate_pdf'])) {
             $saldo_total_segundos -= $hours_seconds;
         }
         
-        $saldo_mensal_cell = $temContrato ? 
+        $saldo_mensal_cell = $temContrato && $conditions === "Com Contrato" ? 
             ($saldo_mensal_segundos < 0 ? '-' . secondsToTime(abs($saldo_mensal_segundos)) : secondsToTime($saldo_mensal_segundos)) : 
             'N/A';
             
-        $saldo_total_cell = $temContrato ? 
-            ($saldo_total_segundos < 0 ? '-' . secondsToTime(abs($saldo_total_segundos)) : secondsToTime($saldo_total_segundos)) : 
-            'N/A';
+        // Determinar o que mostrar na célula Horas Saldo
+        if ($conditions !== "Com Contrato") {
+            $saldo_total_cell = ''; // Célula vazia para condições diferentes
+        } else {
+            $saldo_total_cell = $temContrato ? 
+                ($saldo_total_segundos < 0 ? '-' . secondsToTime(abs($saldo_total_segundos)) : secondsToTime($saldo_total_segundos)) : 
+                'N/A';
+            
+            // Formatar para HHH:MM apenas se for "Com Contrato"
+            if($temContrato) {
+                $parts = explode(':', $saldo_total_cell);
+                $hours = (int)$parts[0];
+                $minutes = str_pad($parts[1] ?? '00', 2, '0', STR_PAD_LEFT);
+                $saldo_total_cell = $hours . ':' . $minutes;
+            }
+        }
         
         // Calcular número de linhas necessárias para cada campo
         $problem_lines = max(1, ceil($pdf->GetStringWidth($problem) / $col_width_problem));
@@ -255,26 +315,11 @@ if (isset($_POST['generate_pdf'])) {
         // Horas (altura dinâmica)
         $pdf->MultiCell($col_width_hours, $line_height, $hours_spent, 1, 'C', false, 0);
         
-        // Condições (altura dinâmica)
-        $pdf->MultiCell($col_width_conditions, $line_height, $conditions, 1, 'C', false, 0);
-        
         // Saldo Mensal
-        if ($temContrato && $saldo_mensal_segundos < 0) {
-            $pdf->SetTextColor(0, 0, 0);
-            $pdf->MultiCell($col_width_saldo_mensal, $line_height, $saldo_mensal_cell, 1, 'C', false, 0);
-            $pdf->SetTextColor(0, 0, 0);
-        } else {
-            $pdf->MultiCell($col_width_saldo_mensal, $line_height, $saldo_mensal_cell, 1, 'C', false, 0);
-        }
+        $pdf->MultiCell($col_width_saldo_mensal, $line_height, $saldo_mensal_cell, 1, 'C', false, 0);
         
-        // Saldo Total
-        if ($temContrato && $saldo_total_segundos < 0) {
-            $pdf->SetTextColor(0, 0, 0);
-            $pdf->MultiCell($col_width_saldo_total, $line_height, $saldo_total_cell, 1, 1, 'C');
-            $pdf->SetTextColor(0, 0, 0);
-        } else {
-            $pdf->MultiCell($col_width_saldo_total, $line_height, $saldo_total_cell, 1, 1, 'C');
-        }
+        // Saldo Total (centralizado e formatado ou vazio)
+        $pdf->MultiCell($col_width_saldo_total, $line_height, $saldo_total_cell, 1, 'C', false, 1);
     }
 
     // Gerar PDF

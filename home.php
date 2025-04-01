@@ -25,12 +25,12 @@ if (isset($_SESSION['id']) && isset($_SESSION['user_name'])) {
             <i class="fas fa-user"></i>
         </a>
 
-        <a href="assist.php" class="big-button2">Assistencias
-            <i class="fa-solid fa-life-ring"></i>
+        <a href="assist.php" class="big-button2">Registos
+            <i class="fa-regular fa-file"></i>
         </a>
 
-        <a href="registo.php" class="big-button3">Registos
-            <i class="fa-regular fa-file"></i>
+        <a href="registo.php" class="big-button3">Assistencias
+            <i class="fa-solid fa-life-ring"></i>
         </a>
 
         <a href="extratos.php" class="big-button3">Extratos
