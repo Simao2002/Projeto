@@ -178,7 +178,7 @@ if (isset($_POST['generate_pdf'])) {
     $start_x = ($pdf->GetPageWidth() - $table_width) / 2;
 
     // Cabeçalho da tabela - PRIMEIRA LINHA (data esquerda, empresa direita)
-    $pdf->SetFont('helvetica', 'B', 6);
+    $pdf->SetFont('helvetica', '', 6);
     $pdf->SetFillColor(230, 230, 230);
     $pdf->SetX($start_x);
         
@@ -249,38 +249,42 @@ if (isset($_POST['generate_pdf'])) {
 
     // Mostrar linha com total contratado apenas no primeiro mês do contrato
     if ($primeiroMesContrato) {
-        // Linha com o total contratado (primeira linha de dados)
-        $pdf->SetFont('helvetica', 'B', 6);
+        // Primeira linha (formato YYYYMM-C)
+        $pdf->SetFont('helvetica', '', 6);
         $pdf->SetFillColor(255, 255, 255);
         $pdf->SetX($start_x);
-        $pdf->Cell($col_width_guia, 8, '', 1, 0, 'C');
-        $pdf->Cell($col_width_date, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_guia, 8, $year.str_pad($month, 2, '0', STR_PAD_LEFT).'-C', 1, 0, 'C');
+        $pdf->Cell($col_width_date, 8, date('d-m-Y', strtotime($year.'-'.$month.'-01')), 1, 0, 'C');
         $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
         $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
-        $pdf->Cell($col_width_horas_contrato, 8, '', 1, 0, 'C');
-        $pdf->Cell($col_width_saldo_mensal, 8, '', 1, 0, 'C');
-        $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
         
-        // Formatar horas contratadas como HHH:MM
+        // Formatar horas contratadas como HHH:MM e mostrar na coluna Horas Contrato
         $parts = explode(':', $horas_contratadas);
         $hours = (int)$parts[0];
         $minutes = isset($parts[1]) ? str_pad($parts[1], 2, '0', STR_PAD_LEFT) : '00';
         $total_contratado_formatado = $hours . ':' . $minutes;
-        $pdf->Cell($col_width_saldo_total, 8, $total_contratado_formatado, 1, 1, 'C');
+        $pdf->Cell($col_width_horas_contrato, 8, $total_contratado_formatado, 1, 0, 'C');
+        
+        $pdf->Cell($col_width_saldo_mensal, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
+        $pdf->Cell($col_width_saldo_total, 8, '', 1, 1, 'C');
     }
 
-    // Linha inicial com saldos
+    // Segunda linha (horas mensais - formato YYYYMM-M)
     $pdf->SetFont('helvetica', '', 6);
     $pdf->SetFillColor(255, 255, 255);
     $pdf->SetX($start_x);
-    $pdf->Cell($col_width_guia, 8, '', 1, 0, 'C');
-    $pdf->Cell($col_width_date, 8, '', 1, 0, 'C');
+    $pdf->Cell($col_width_guia, 8, $year.str_pad($month, 2, '0', STR_PAD_LEFT).'-M', 1, 0, 'C');
+    $pdf->Cell($col_width_date, 8, date('d-m-Y', strtotime($year.'-'.$month.'-01')), 1, 0, 'C');
     $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_horas_contrato, 8, '', 1, 0, 'C');
-    $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_disponiveis_mes_atual : 'N/A', 1, 0, 'C');
+    $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_mensais : 'N/A', 1, 0, 'C');
     $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
-    $pdf->Cell($col_width_saldo_total, 8, '', 1, 1, 'C');
+    
+    // Mostrar saldo total ANTES de subtrair as horas deste mês
+    $saldo_inicial_formatado = $temContrato ? secondsToTime($saldo_total_segundos) : '';
+    $pdf->Cell($col_width_saldo_total, 8, $saldo_inicial_formatado, 1, 1, 'C');
 
     // Processar as assistências do mês atual
     $default_line_height = 6;
@@ -342,11 +346,11 @@ if (isset($_POST['generate_pdf'])) {
         // Descrição (altura dinâmica)
         $pdf->MultiCell($col_width_description, $line_height, $help_description, 1, 'C', false, 0);
         
-        // Horas Contrato (nova coluna - em branco)
+        // Horas Contrato (em branco para todas as linhas de assistência)
         $pdf->MultiCell($col_width_horas_contrato, $line_height, '', 1, 'C', false, 0);
         
-        // Horas Disponíveis
-        $pdf->MultiCell($col_width_saldo_mensal, $line_height, $saldo_mensal_cell, 1, 'C', false, 0);
+        // Horas Disponíveis (mostra apenas na linha inicial)
+        $pdf->MultiCell($col_width_saldo_mensal, $line_height, '', 1, 'C', false, 0);
         
         // Horas Inputadas (altura dinâmica)
         $pdf->MultiCell($col_width_hours, $line_height, $hours_spent, 1, 'C', false, 0);
