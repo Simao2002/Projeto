@@ -103,7 +103,7 @@ if (isset($_POST['generate_pdf'])) {
         ($segundos_contratados - $total_segundos_utilizados_anteriores) : 
         0;
 
-    // Calcular o saldo acumulado do mês anterior (pode ser positivo ou negativo)
+    // Obter o saldo acumulado do mês anterior (pode ser positivo ou negativo)
     $mes_anterior = date('Y-m', strtotime('-1 month', strtotime($year.'-'.$month.'-01')));
     $sql_saldo_mes_anterior = "SELECT saldo_mensal FROM saldo_horas 
                               WHERE company_id = ? 
@@ -279,7 +279,7 @@ if (isset($_POST['generate_pdf'])) {
     $pdf->Cell($col_width_problem, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_description, 8, '', 1, 0, 'C');
     $pdf->Cell($col_width_horas_contrato, 8, '', 1, 0, 'C');
-    $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_mensais : 'N/A', 1, 0, 'C');
+    $pdf->Cell($col_width_saldo_mensal, 8, $temContrato ? $horas_disponiveis_mes_atual : 'N/A', 1, 0, 'C');
     $pdf->Cell($col_width_hours, 8, '', 1, 0, 'C');
     
     // Mostrar saldo total ANTES de subtrair as horas deste mês
